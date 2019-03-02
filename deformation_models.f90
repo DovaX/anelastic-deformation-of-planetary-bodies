@@ -1,10 +1,10 @@
 module modul1
 contains
 
-subroutine naplnitkonstanty(l,xconst) !inicialization of constants depending on spectral parameter l (in thesis denoted j)
+subroutine initialize_constants(l,xconst) !inicialization of constants depending on spectral parameter l (in thesis denoted j)
 real(8), dimension(40), intent(out)  :: xconst
 real(8), intent(in) :: l
-xconst(1)=sqrt(l) !A
+xconst(1)=sqrt(l) !A - letters corresponding to thesis notes
 xconst(2)=-sqrt(l)*(l-1)
 xconst(3)=-sqrt(l+1)
 xconst(4)=-sqrt(l+1)*(l+2)
@@ -45,59 +45,59 @@ xconst(38)=-sqrt((l+2)/(2*l+3))
 xconst(39)=sqrt((l-1)/(2*(2*l+1)))
 xconst(40)=-sqrt((l+2)/(2*(2*l+1)))
 
-end subroutine naplnitkonstanty
+end subroutine initialize_constants
 
 !calculates ur
-subroutine vypocitejur(pocetvrstev,l,b,ur)
-integer i,pocetvrstev
+subroutine calculate_ur(num_of_layers,l,b,ur)
+integer i,num_of_layers
 real(8), dimension(:) :: b,ur
 real(8) l
-do i=1, pocetvrstev+1
+do i=1, num_of_layers+1
 ur(i)=sqrt(l/(2*l+1))*b(6*i-5)-sqrt((l+1)/(2*l+1))*b(6*i-4)
 end do
 end subroutine
 
-!calculates power
-subroutine vypocitejpcelk(pcelk,pocetvrstev,pocetkroku,p,deltat,eta,r,krokuvperiode)
+!calculates total power
+subroutine calculate_pcelk(pcelk,num_of_layers,num_of_steps,p,deltat,eta,r,steps_in_period)
 real(8) pcelk,deltat
-integer pocetvrstev,i,pocetkroku,tn,krokuvperiode
+integer num_of_layers,i,num_of_steps,tn,steps_in_period
 real(8), dimension(:) :: r,eta
 real(8), dimension(:,:) :: p
 pcelk=0
-do i=0,pocetvrstev-1
-do tn=pocetkroku-krokuvperiode, pocetkroku
+do i=0,num_of_layers-1
+do tn=num_of_steps-steps_in_period, num_of_steps
 pcelk=pcelk+p(i+1,tn)*deltat
 enddo
-pcelk=pcelk-p(i+1,pocetkroku-krokuvperiode)/2-p(i+1,pocetkroku)/2
+pcelk=pcelk-p(i+1,num_of_steps-steps_in_period)/2-p(i+1,num_of_steps)/2
 p(i+1,1)=pcelk/2/eta(i+1) !storing value
 pcelk=0
 enddo
-do i=0,pocetvrstev-1
+do i=0,num_of_layers-1
 pcelk=p(i+1,1)*(r(i+1)+r(i+2))/2*(r(i+1)+r(i+2))/2*(r(i+1)-r(i+2))+pcelk
 enddo
-pcelk=pcelk-p(1,1)*(r(1)+r(2))/2*(r(1)+r(2))/2/2*(r(1)-r(2))-p(pocetvrstev-1,1)*(r(pocetvrstev+1)+r(pocetvrstev))&
-/2*(r(pocetvrstev)+r(pocetvrstev+1))/2/2*(r(pocetvrstev)-r(pocetvrstev+1))
-pcelk=pcelk/(pocetkroku-krokuvperiode)/deltat
+pcelk=pcelk-p(1,1)*(r(1)+r(2))/2*(r(1)+r(2))/2/2*(r(1)-r(2))-p(num_of_layers-1,1)*(r(num_of_layers+1)+r(num_of_layers))&
+/2*(r(num_of_layers)+r(num_of_layers+1))/2/2*(r(num_of_layers)-r(num_of_layers+1))
+pcelk=pcelk/(num_of_steps-steps_in_period)/deltat
 end subroutine
 
 !implementing tidal potential
-subroutine zadanislapovehopotencialu(pocetvrstev,l,b,T)
+subroutine tidal_potential_initialization(num_of_layers,l,b,T)
 real(8) l,T
-integer pocetvrstev
+integer num_of_layers
 real(8), dimension(:) :: b
-do i=1, pocetvrstev*6+2
+do i=1, num_of_layers*6+2
 b(i)=0
 end do
-b(pocetvrstev*6+1)=-T*sqrt(l/(2*l+1))
-b(pocetvrstev*6+2)=T*sqrt((l+1)/(2*l+1))
+b(num_of_layers*6+1)=-T*sqrt(l/(2*l+1))
+b(num_of_layers*6+2)=T*sqrt((l+1)/(2*l+1))
 end subroutine
 
 !implementing force on the top
-subroutine zadanisily(pocetvrstev,l,b,T)
+subroutine zadanisily(num_of_layers,l,b,T)
 real(8) l,T
-integer pocetvrstev
+integer num_of_layers
 real(8), dimension(:) :: b
-do i=1, pocetvrstev*6+2
+do i=1, num_of_layers*6+2
 b(i)=0
 end do
 b(1)=-T*sqrt(l/(2*l+1))
@@ -105,12 +105,12 @@ b(2)=T*sqrt((l+1)/(2*l+1))
 end subroutine
 end module
 
-program naplnenimatice
+program matrix_initialization
 use modul1
 implicit none
 !inicialization
 real(8), dimension(:,:), allocatable :: p,eps,epsc,epsnc,epsmemory
-integer :: pocetvrstev,i,j,tn,k,n,m,pocetkroku,krokuvperiode,planet,viscositystart,viscosityend
+integer :: num_of_layers,i,j,tn,k,n,m,num_of_steps,steps_in_period,planet,viscositystart,viscosityend
 real(8), dimension(:), allocatable :: r,rhat,b,b2,b2nc,b2c,b3,b3c,b3nc,bmemory,bmemory3, rtilde,rhatd,rtilded,ur,mu,eta,ur22
 real(8), dimension(:), allocatable :: bcmemory, bncmemory
 real(8) :: l,rmax,rmin,rpomoc,g,g2,T,T2,T2nc,T2c,e,rho,deltarho,rhocore,omega,mukonst,deltat,pi
@@ -123,8 +123,8 @@ real(8) :: urmemory, urmaxmemory, theta
 l=2 !spectral parameter l (in thesis denoted j)
 m=0 !spectral parameter m
 pi=3.1415926535897932384626433832795d0 !pi constant
-krokuvperiode=2000.0d0 !numerical discretization in time, number of steps in one period
-pocetkroku=10*krokuvperiode !number of total steps in time
+steps_in_period=2000.0d0 !numerical discretization in time, number of steps in one period
+num_of_steps=10*steps_in_period !number of total steps in time
 
 print*, "Choose from examined planetary bodies"
 print*, "Enceladus 26km(1), Enceladus 52km(2), Europa(3), Exoplanet 1day(4)"
@@ -142,7 +142,7 @@ T=1000*rho*g!testing force
 e=0.0045d0!orbital eccentricity
 omega=2*pi/(1.370218d0*60*60*24)!orbital angular frequence
 rmax=252100!top boundary in meters
-pocetvrstev=20!number of layers in vertical spatial discretization
+num_of_layers=20!number of layers in vertical spatial discretization
 if (planet==2) then
 rmin=rmax-52000!52km
 else
@@ -161,7 +161,7 @@ T=1000*rho*g
 e=0.009d0
 omega=2*pi/(3.551d0*60*60*24)
 rmax=1561000
-pocetvrstev=20
+num_of_layers=20
 rmin=rmax-30000
 mukonst=3.3d9
 viscositystart=10
@@ -176,7 +176,7 @@ T=1000*rho*g
 e=0.1d0
 
 rmax=6400000
-pocetvrstev=20
+num_of_layers=20
 rmin=rmax-3200000
 mukonst=70.0d9
 viscositystart=14
@@ -202,7 +202,7 @@ T=1000*rho*g
 e=0.2d0
 omega=2*pi/(87.969d0*60*60*24)
 rmax=2450000
-pocetvrstev=20
+num_of_layers=20
 rmin=rmax-400000
 mukonst=70.0d9
 viscositystart=14
@@ -210,47 +210,47 @@ viscosityend=24
 END SELECT
 
 
-call naplnitkonstanty(l,xconst)
+call initialize_constants(l,xconst)
 
 !Elasticity part
-allocate(r(pocetvrstev+1))
-allocate(rhat(pocetvrstev))
-allocate(rtilde(pocetvrstev))
-allocate(mu(pocetvrstev))
-allocate(rhatd(pocetvrstev-1))
-allocate(rtilded(pocetvrstev-1))
-allocate(eta(pocetvrstev))
+allocate(r(num_of_layers+1))
+allocate(rhat(num_of_layers))
+allocate(rtilde(num_of_layers))
+allocate(mu(num_of_layers))
+allocate(rhatd(num_of_layers-1))
+allocate(rtilded(num_of_layers-1))
+allocate(eta(num_of_layers))
 
 !define auxiliary variables in order to simplify matrix A as done in thesis
-do i=1, pocetvrstev+1
-r(i)=rmax-(rmax-rmin)/((pocetvrstev-1)*2)*(2*i-3)
+do i=1, num_of_layers+1
+r(i)=rmax-(rmax-rmin)/((num_of_layers-1)*2)*(2*i-3)
 enddo
-do i=1, pocetvrstev
+do i=1, num_of_layers
 rhat(i)=r(i+1)+r(i)
 rtilde(i)=r(i+1)-r(i)
 enddo
-do i=1, pocetvrstev-1
+do i=1, num_of_layers-1
 rhatd(i)=r(i+2)+r(i)
 rtilded(i)=(r(i+2)-r(i))/2
 enddo
 
 !fill shear modulus constant in all layers
-do i=1, pocetvrstev
+do i=1, num_of_layers
 mu(i)=mukonst
 end do
 
-allocate(indx(pocetvrstev*6+2))
-allocate(a(pocetvrstev*6+2,15))
-allocate(al(pocetvrstev*6+2,7))
-allocate(b(pocetvrstev*6+2))
-allocate(ur(pocetvrstev+1))
-allocate(ur22(pocetvrstev+1))
+allocate(indx(num_of_layers*6+2))
+allocate(a(num_of_layers*6+2,15))
+allocate(al(num_of_layers*6+2,7))
+allocate(b(num_of_layers*6+2))
+allocate(ur(num_of_layers+1))
+allocate(ur22(num_of_layers+1))
 
 !right hand side external force on the top boundary, possibility of imposing force by changing last parameter
-call zadanisily(pocetvrstev,l,b,0d0)
+call zadanisily(num_of_layers,l,b,0d0)
 a=0!inicialization of matrix in bandform
 
-do i=0, pocetvrstev-1
+do i=0, num_of_layers-1
 !continuity equation
 a(6*i+2+1,4-1+3)=-rhat(i+1)*xconst(1)+rtilde(i+1)*xconst(2)
 a(6*i+2+1,4+0+3)=-rhat(i+1)*xconst(3)+rtilde(i+1)*xconst(4)
@@ -270,8 +270,8 @@ a(6*i+2+3,2+2+3)=(rhat(i+1)*rtilde(i+1))/(rhat(i+1)*rtilde(i+1))
 a(6*i+2+4,1+0+3)=(-rhat(i+1)*mu(i+1)*xconst(15)+rtilde(i+1)*mu(i+1)*xconst(16))/(rhat(i+1)*rtilde(i+1))
 a(6*i+2+4,1+6+3)=(rhat(i+1)*mu(i+1)*xconst(15)+rtilde(i+1)*mu(i+1)*xconst(16))/(rhat(i+1)*rtilde(i+1))
 a(6*i+2+4,1+4+3)=(rhat(i+1)*rtilde(i+1))/(rhat(i+1)*rtilde(i+1))
-!equationofmotion
-if (i<pocetvrstev-1) then
+!equation of motion
+if (i<num_of_layers-1) then
 a(6*i+2+5,1+3)=-rhatd(i+1)*xconst(19)+rtilded(i+1)*xconst(20)
 a(6*i+2+5,2+3)=-rhatd(i+1)*xconst(21)+rtilded(i+1)*xconst(22)
 a(6*i+2+5,3+3)=-rhatd(i+1)*xconst(17)+rtilded(i+1)*xconst(18)
@@ -281,7 +281,7 @@ a(6*i+2+5,2+6+3)=rhatd(i+1)*xconst(21)+rtilded(i+1)*xconst(22)
 a(6*i+2+5,3+6+3)=rhatd(i+1)*xconst(17)+rtilded(i+1)*xconst(18)
 end if
 
-if (i<pocetvrstev-1) then
+if (i<num_of_layers-1) then
 a(6*i+2+6,-1+2+3)=-rhatd(i+1)*xconst(29)+rtilded(i+1)*xconst(30)
 a(6*i+2+6,-1+3+3)=-rhatd(i+1)*xconst(27)+rtilded(i+1)*xconst(28)
 a(6*i+2+6,-1+4+3)=-rhatd(i+1)*xconst(31)+rtilded(i+1)*xconst(32)
@@ -310,46 +310,46 @@ a(2,10+3)=rho*g*(-sqrt(l*(l+1))/((2*l+1)*2))
 a(2,11+3)=rho*g*(l+1)/((2*l+1)*2)
 
 !bottom boundary condition
-a(pocetvrstev*6+1,1+3)=xconst(34)
-a(pocetvrstev*6+1,2+3)=xconst(35)
-a(pocetvrstev*6+1,3+3)=xconst(33)
-a(pocetvrstev*6+1,-1+3)=-deltarho*g2*l/((2*l+1)*2)
-a(pocetvrstev*6+1,0+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a(pocetvrstev*6+1,5+3)=-deltarho*g2*l/((2*l+1)*2)
-a(pocetvrstev*6+1,6+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a(num_of_layers*6+1,1+3)=xconst(34)
+a(num_of_layers*6+1,2+3)=xconst(35)
+a(num_of_layers*6+1,3+3)=xconst(33)
+a(num_of_layers*6+1,-1+3)=-deltarho*g2*l/((2*l+1)*2)
+a(num_of_layers*6+1,0+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a(num_of_layers*6+1,5+3)=-deltarho*g2*l/((2*l+1)*2)
+a(num_of_layers*6+1,6+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
 
-a(pocetvrstev*6+2,1+3)=xconst(37)
-a(pocetvrstev*6+2,2+3)=xconst(36)
-a(pocetvrstev*6+2,3+3)=xconst(38)
-a(pocetvrstev*6+2,-2+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a(pocetvrstev*6+2,-1+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
-a(pocetvrstev*6+2,4+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a(pocetvrstev*6+2,5+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
+a(num_of_layers*6+2,1+3)=xconst(37)
+a(num_of_layers*6+2,2+3)=xconst(36)
+a(num_of_layers*6+2,3+3)=xconst(38)
+a(num_of_layers*6+2,-2+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a(num_of_layers*6+2,-1+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
+a(num_of_layers*6+2,4+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a(num_of_layers*6+2,5+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
 
-call bandecdp(a,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,d)!procedure from numerical recipes to solve matrix in band form
-call banbksdp(a,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,b)!procedure from numerical recipes to calculate matrix equation Ax=b
+call bandecdp(a,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,d)!procedure from numerical recipes to solve matrix in band form
+call banbksdp(a,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,b)!procedure from numerical recipes to calculate matrix equation Ax=b
 
 !----------------------------------------------------------------------------------------------------------
 !End of model of elasticity
 !----------------------------------------------------------------------------------------------------------
 
-allocate(b2(pocetvrstev*6+2))
-allocate(bmemory(pocetvrstev*6+2))
-allocate(a2(pocetvrstev*6+2,15))
-allocate(p(pocetvrstev,pocetkroku))
-allocate(b2c(pocetvrstev*6+2))
-allocate(b2nc(pocetvrstev*6+2))
-allocate(bcmemory(pocetvrstev*6+2))
-allocate(bncmemory(pocetvrstev*6+2))
-allocate(b3(pocetvrstev*6+2))
-allocate(bmemory3(pocetvrstev*6+2))
-allocate(a3(pocetvrstev*6+2,15))
-allocate(eps(pocetvrstev*6+2,pocetkroku+1))
-allocate(b3c(pocetvrstev*6+2))
-allocate(b3nc(pocetvrstev*6+2))
-allocate(epsmemory(pocetvrstev*6+2,pocetkroku+1))
-allocate(epsc(pocetvrstev*6+2,pocetkroku+1))
-allocate(epsnc(pocetvrstev*6+2,pocetkroku+1))
+allocate(b2(num_of_layers*6+2))
+allocate(bmemory(num_of_layers*6+2))
+allocate(a2(num_of_layers*6+2,15))
+allocate(p(num_of_layers,num_of_steps))
+allocate(b2c(num_of_layers*6+2))
+allocate(b2nc(num_of_layers*6+2))
+allocate(bcmemory(num_of_layers*6+2))
+allocate(bncmemory(num_of_layers*6+2))
+allocate(b3(num_of_layers*6+2))
+allocate(bmemory3(num_of_layers*6+2))
+allocate(a3(num_of_layers*6+2,15))
+allocate(eps(num_of_layers*6+2,num_of_steps+1))
+allocate(b3c(num_of_layers*6+2))
+allocate(b3nc(num_of_layers*6+2))
+allocate(epsmemory(num_of_layers*6+2,num_of_steps+1))
+allocate(epsc(num_of_layers*6+2,num_of_steps+1))
+allocate(epsnc(num_of_layers*6+2,num_of_steps+1))
 
 open(1, file="pcelketa")!file where power and viscosity is stored for maxwell model
 open(2, file="pcelketakelvin") !file where power and viscosity is stored for kelvin model
@@ -363,10 +363,10 @@ open(18, file="urthetakelvin")!file where power and viscosity is stored for kelv
 do j=viscositystart*20,viscosityend*20  !viscosity 10-22 ice, 14-24 silicate
     eta=10.0d0**(j/20.0d0)
 
-deltat=2*pi/omega/krokuvperiode!timestepchosensmall
+deltat=2*pi/omega/steps_in_period!timestepchosensmall
 
 a2=0
-do i=0, pocetvrstev-1
+do i=0, num_of_layers-1
 !continuity equation
 a2(6*i+2+1,4-1+3)=-rhat(i+1)*xconst(1)+rtilde(i+1)*xconst(2)
 a2(6*i+2+1,4+0+3)=-rhat(i+1)*xconst(3)+rtilde(i+1)*xconst(4)
@@ -389,7 +389,7 @@ a2(6*i+2+4,1+4+3)=(rhat(i+1)*rtilde(i+1)*(1+mu(i+1)/eta(i+1)*deltat/2.0D0))/(rha
 
 
 !equation of motion
-if (i<pocetvrstev-1) then
+if (i<num_of_layers-1) then
 a2(6*i+2+5,1+3)=(-rhatd(i+1)*xconst(19)+rtilded(i+1)*xconst(20))/(rhatd(i+1)*rtilded(i+1))
 a2(6*i+2+5,2+3)=(-rhatd(i+1)*xconst(21)+rtilded(i+1)*xconst(22))/(rhatd(i+1)*rtilded(i+1))
 a2(6*i+2+5,3+3)=(-rhatd(i+1)*xconst(17)+rtilded(i+1)*xconst(18))/(rhatd(i+1)*rtilded(i+1))
@@ -399,7 +399,7 @@ a2(6*i+2+5,3+6+3)=(rhatd(i+1)*xconst(17)+rtilded(i+1)*xconst(18))/(rhatd(i+1)*rt
 
 end if
 
-if (i<pocetvrstev-1) then
+if (i<num_of_layers-1) then
 a2(6*i+2+6,-1+2+3)=(-rhatd(i+1)*xconst(29)+rtilded(i+1)*xconst(30))/(rhatd(i+1)*rtilded(i+1))
 a2(6*i+2+6,-1+3+3)=(-rhatd(i+1)*xconst(27)+rtilded(i+1)*xconst(28))/(rhatd(i+1)*rtilded(i+1))
 a2(6*i+2+6,-1+4+3)=(-rhatd(i+1)*xconst(31)+rtilded(i+1)*xconst(32))/(rhatd(i+1)*rtilded(i+1))
@@ -430,24 +430,24 @@ a2(2,10+3)=rho*g*(-sqrt(l*(l+1))/((2*l+1)*2))
 a2(2,11+3)=rho*g*(l+1)/((2*l+1)*2)
 
 !bottom boundary condition
-a2(pocetvrstev*6+1,1+3)=xconst(34)
-a2(pocetvrstev*6+1,2+3)=xconst(35)
-a2(pocetvrstev*6+1,3+3)=xconst(33)
-a2(pocetvrstev*6+1,-1+3)=-deltarho*g2*l/((2*l+1)*2)
-a2(pocetvrstev*6+1,0+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a2(pocetvrstev*6+1,5+3)=-deltarho*g2*l/((2*l+1)*2)
-a2(pocetvrstev*6+1,6+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a2(num_of_layers*6+1,1+3)=xconst(34)
+a2(num_of_layers*6+1,2+3)=xconst(35)
+a2(num_of_layers*6+1,3+3)=xconst(33)
+a2(num_of_layers*6+1,-1+3)=-deltarho*g2*l/((2*l+1)*2)
+a2(num_of_layers*6+1,0+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a2(num_of_layers*6+1,5+3)=-deltarho*g2*l/((2*l+1)*2)
+a2(num_of_layers*6+1,6+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
 
 
-a2(pocetvrstev*6+2,1+3)=xconst(37)
-a2(pocetvrstev*6+2,2+3)=xconst(36)
-a2(pocetvrstev*6+2,3+3)=xconst(38)
-a2(pocetvrstev*6+2,-2+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a2(pocetvrstev*6+2,-1+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
-a2(pocetvrstev*6+2,4+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a2(pocetvrstev*6+2,5+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
+a2(num_of_layers*6+2,1+3)=xconst(37)
+a2(num_of_layers*6+2,2+3)=xconst(36)
+a2(num_of_layers*6+2,3+3)=xconst(38)
+a2(num_of_layers*6+2,-2+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a2(num_of_layers*6+2,-1+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
+a2(num_of_layers*6+2,4+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a2(num_of_layers*6+2,5+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
 
-call bandecdp(a2,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,d)
+call bandecdp(a2,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,d)
 
 p=0
 bmemory=0
@@ -457,40 +457,40 @@ urmax=0
 urmaxmemory=0
 
 open(3, file='time')!file where radial displacement and time is stored
-do tn=1,pocetkroku
+do tn=1,num_of_steps
 !tidal potential for mercury
 if (planet.eq.8) then
-T2=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2.0d0*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2.0d0*omega*omega*e*(-sqrt(9*pi/5.0d0)*(cos(omega*tn*deltat)+3.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
-T2nc=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2.0d0*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1+6*e*e)*cos(omega*tn*deltat)-1.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
-T2c=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2.0d0*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1-11*e*e)*sin(omega*tn*deltat)-1.0d0/2.0d0*e*sin(2*omega*tn*deltat)))
+T2=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2.0d0*(r(num_of_layers+1)+&
+r(num_of_layers))/2.0d0*omega*omega*e*(-sqrt(9*pi/5.0d0)*(cos(omega*tn*deltat)+3.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
+T2nc=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2.0d0*(r(num_of_layers+1)+&
+r(num_of_layers))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1+6*e*e)*cos(omega*tn*deltat)-1.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
+T2c=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2.0d0*(r(num_of_layers+1)+&
+r(num_of_layers))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1-11*e*e)*sin(omega*tn*deltat)-1.0d0/2.0d0*e*sin(2*omega*tn*deltat)))
 
-call zadanislapovehopotencialu(pocetvrstev,l,b2,T2)
-call zadanislapovehopotencialu(pocetvrstev,l,b2nc,T2nc)
-call zadanislapovehopotencialu(pocetvrstev,l,b2c,T2c)
+call tidal_potential_initialization(num_of_layers,l,b2,T2)
+call tidal_potential_initialization(num_of_layers,l,b2nc,T2nc)
+call tidal_potential_initialization(num_of_layers,l,b2c,T2c)
 !!!
-do i=1, pocetvrstev-1
+do i=1, num_of_layers-1
 b2(1+6*i)=-rho*r(i+1)*omega*omega*e*(-sqrt(18*pi)*(cos(omega*tn*deltat)+3.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
 b2nc(1+6*i)=-rho*r(i+1)*omega*omega*(sqrt(3*pi)*((1+6*e*e)*cos(omega*tn*deltat)-1.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
 b2c(1+6*i)=-rho*r(i+1)*omega*omega*(sqrt(3*pi)*((1-11*e*e)*sin(omega*tn*deltat)-1.0d0/2.0d0*e*sin(2*omega*tn*deltat)))
 end do
 else
 !tidal potential force in 20, 22, 2-2 decomposed into real and compex part
-T2=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2*omega*omega*e*(-sqrt(9*pi/5)*cos(omega*tn*deltat))
-T2nc=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2*omega*omega*e*(sqrt(27*pi/10)*cos(omega*tn*deltat))
-T2c=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2*omega*omega*e*(-sqrt(24*pi/5)*sin(omega*tn*deltat))
+T2=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2*(r(num_of_layers+1)+&
+r(num_of_layers))/2*omega*omega*e*(-sqrt(9*pi/5)*cos(omega*tn*deltat))
+T2nc=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2*(r(num_of_layers+1)+&
+r(num_of_layers))/2*omega*omega*e*(sqrt(27*pi/10)*cos(omega*tn*deltat))
+T2c=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2*(r(num_of_layers+1)+&
+r(num_of_layers))/2*omega*omega*e*(-sqrt(24*pi/5)*sin(omega*tn*deltat))
 
-call zadanislapovehopotencialu(pocetvrstev,l,b2,T2)
-call zadanislapovehopotencialu(pocetvrstev,l,b2nc,T2nc)
-call zadanislapovehopotencialu(pocetvrstev,l,b2c,T2c)
+call tidal_potential_initialization(num_of_layers,l,b2,T2)
+call tidal_potential_initialization(num_of_layers,l,b2nc,T2nc)
+call tidal_potential_initialization(num_of_layers,l,b2c,T2c)
 
 !adding tidal potential to equation of motion
-do i=1, pocetvrstev-1
+do i=1, num_of_layers-1
 b2(1+6*i)=-rho*r(i+1)*omega*omega*e*(-sqrt(18*pi)*cos(omega*tn*deltat))
 b2nc(1+6*i)=-rho*r(i+1)*omega*omega*e*(sqrt(27*pi)*cos(omega*tn*deltat))
 b2c(1+6*i)=-rho*r(i+1)*omega*omega*e*(-sqrt(48*pi)*sin(omega*tn*deltat))
@@ -498,7 +498,7 @@ end do
 endif
 
 !computing maxwell right hand side
-do i=0,pocetvrstev-1
+do i=0,num_of_layers-1
 b2(4+6*i)=-mu(i+1)/eta(i+1)*deltat*(b(3+6*i)/2+bmemory(3+6*i))
 b2(5+6*i)=-mu(i+1)/eta(i+1)*deltat*(b(4+6*i)/2+bmemory(4+6*i))
 b2(6+6*i)=-mu(i+1)/eta(i+1)*deltat*(b(6+6*i)/2+bmemory(6+6*i))
@@ -511,12 +511,12 @@ b2c(6+6*i)=-mu(i+1)/eta(i+1)*deltat*(b(6+6*i)/2+bcmemory(6+6*i))
 enddo
 
 !solving equation
-call banbksdp(a2,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,b2)
-call banbksdp(a2,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,b2nc)
-call banbksdp(a2,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,b2c)
+call banbksdp(a2,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,b2)
+call banbksdp(a2,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,b2nc)
+call banbksdp(a2,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,b2c)
 
 !storing information about the previous timestep
-do i=0, pocetvrstev-1
+do i=0, num_of_layers-1
 bmemory(3+6*i)=bmemory(3+6*i)+b2(3+6*i)
 bmemory(4+6*i)=bmemory(4+6*i)+b2(4+6*i)
 bmemory(6+6*i)=bmemory(6+6*i)+b2(6+6*i)
@@ -536,21 +536,21 @@ p(i+1,tn)=(b2(3+6*i)*b2(3+6*i))+(b2(4+6*i)*b2(4+6*i))+(b2(6+6*i)*b2(6+6*i))+&
 p(i+1,tn)
 end do
 
-call vypocitejur(pocetvrstev,l,b2,ur)
-call vypocitejur(pocetvrstev,l,b2nc,ur22)
+call calculate_ur(num_of_layers,l,b2,ur)
+call calculate_ur(num_of_layers,l,b2nc,ur22)
 
 !calculating precise radial displacement
 theta = pi/2
 urmemory = (ur(1)+ur(2))/2*1/4*sqrt(5.0d0/pi)*(3*cos(theta)*cos(theta)-1)+&
 (ur22(1)+ur22(2))*1/4*sqrt(15.0d0/2/pi)*sin(theta)*sin(theta)
 
-if (tn>pocetkroku-krokuvperiode) then
+if (tn>num_of_steps-steps_in_period) then
 if (abs(urmemory) > urmaxmemory) then
 urmaxmemory = abs(urmemory)
 endif
 if ((ur(1)+ur(2))/2<urmax) then
     urmax=(ur(1)+ur(2))/2
-    tnmax=1.0d0*(tn-(pocetkroku-krokuvperiode))/krokuvperiode
+    tnmax=1.0d0*(tn-(num_of_steps-steps_in_period))/steps_in_period
 endif
 endif
 if (tnmax.eq.1) then
@@ -567,7 +567,7 @@ write(17,*),eta(1),urmaxmemory
 print*,"viscosity ", eta(1)
 
 !calculating power
-call vypocitejpcelk(pcelk,pocetvrstev,pocetkroku,p,deltat,eta,r,krokuvperiode)
+call calculate_pcelk(pcelk,num_of_layers,num_of_steps,p,deltat,eta,r,steps_in_period)
 print*, pcelk
 write(1,*), eta(1),pcelk
 
@@ -577,7 +577,7 @@ write(1,*), eta(1),pcelk
 !----------------------------------------------------------------------------------------------------------
 
 a3=0
-do i=0, pocetvrstev-1
+do i=0, num_of_layers-1
 !continuity equation
 a3(6*i+2+1,4-1+3)=-rhat(i+1)*xconst(1)+rtilde(i+1)*xconst(2)
 a3(6*i+2+1,4+0+3)=-rhat(i+1)*xconst(3)+rtilde(i+1)*xconst(4)
@@ -608,7 +608,7 @@ a3(6*i+2+4,1+4+3)=1
 
 
 !equation of motion
-if (i<pocetvrstev-1) then
+if (i<num_of_layers-1) then
 a3(6*i+2+5,1+3)=(-rhatd(i+1)*xconst(19)+rtilded(i+1)*xconst(20))/(rhatd(i+1)*rtilded(i+1))
 a3(6*i+2+5,2+3)=(-rhatd(i+1)*xconst(21)+rtilded(i+1)*xconst(22))/(rhatd(i+1)*rtilded(i+1))
 a3(6*i+2+5,3+3)=(-rhatd(i+1)*xconst(17)+rtilded(i+1)*xconst(18))/(rhatd(i+1)*rtilded(i+1))
@@ -619,7 +619,7 @@ a3(6*i+2+5,3+6+3)=(rhatd(i+1)*xconst(17)+rtilded(i+1)*xconst(18))/(rhatd(i+1)*rt
 
 end if
 
-if (i<pocetvrstev-1) then
+if (i<num_of_layers-1) then
 a3(6*i+2+6,-1+2+3)=(-rhatd(i+1)*xconst(29)+rtilded(i+1)*xconst(30))/(rhatd(i+1)*rtilded(i+1))
 a3(6*i+2+6,-1+3+3)=(-rhatd(i+1)*xconst(27)+rtilded(i+1)*xconst(28))/(rhatd(i+1)*rtilded(i+1))
 a3(6*i+2+6,-1+4+3)=(-rhatd(i+1)*xconst(31)+rtilded(i+1)*xconst(32))/(rhatd(i+1)*rtilded(i+1))
@@ -647,24 +647,24 @@ a3(2,5+3)=rho*g*(l+1)/((2*l+1)*2)
 a3(2,10+3)=rho*g*(-sqrt(l*(l+1))/((2*l+1)*2))
 a3(2,11+3)=rho*g*(l+1)/((2*l+1)*2)
 
-a3(pocetvrstev*6+1,1+3)=xconst(34)
-a3(pocetvrstev*6+1,2+3)=xconst(35)
-a3(pocetvrstev*6+1,3+3)=xconst(33)
-a3(pocetvrstev*6+1,-1+3)=-deltarho*g2*l/((2*l+1)*2)
-a3(pocetvrstev*6+1,0+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a3(pocetvrstev*6+1,5+3)=-deltarho*g2*l/((2*l+1)*2)
-a3(pocetvrstev*6+1,6+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a3(num_of_layers*6+1,1+3)=xconst(34)
+a3(num_of_layers*6+1,2+3)=xconst(35)
+a3(num_of_layers*6+1,3+3)=xconst(33)
+a3(num_of_layers*6+1,-1+3)=-deltarho*g2*l/((2*l+1)*2)
+a3(num_of_layers*6+1,0+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a3(num_of_layers*6+1,5+3)=-deltarho*g2*l/((2*l+1)*2)
+a3(num_of_layers*6+1,6+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
 
-a3(pocetvrstev*6+2,1+3)=xconst(37)
-a3(pocetvrstev*6+2,2+3)=xconst(36)
-a3(pocetvrstev*6+2,3+3)=xconst(38)
-a3(pocetvrstev*6+2,-2+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a3(pocetvrstev*6+2,-1+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
-a3(pocetvrstev*6+2,4+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
-a3(pocetvrstev*6+2,5+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
+a3(num_of_layers*6+2,1+3)=xconst(37)
+a3(num_of_layers*6+2,2+3)=xconst(36)
+a3(num_of_layers*6+2,3+3)=xconst(38)
+a3(num_of_layers*6+2,-2+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a3(num_of_layers*6+2,-1+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
+a3(num_of_layers*6+2,4+3)=-deltarho*g2*(-sqrt(l*(l+1))/((2*l+1)*2))
+a3(num_of_layers*6+2,5+3)=-deltarho*g2*(l+1)/((2*l+1)*2)
 
 
-call bandecdp(a3,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,d)
+call bandecdp(a3,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,d)
 
 eps=0
 b3=0
@@ -678,22 +678,22 @@ urmax=0
 urmaxmemory=0
 
 open(3,file='timekelvin')
-do tn=1,pocetkroku
+do tn=1,num_of_steps
 
 !tidal potential for mercury
 if (planet.eq.8) then
-T2=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2.0d0*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2.0d0*omega*omega*e*(-sqrt(9*pi/5.0d0)*(cos(omega*tn*deltat)+3.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
-T2nc=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2.0d0*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1+6*e*e)*cos(omega*tn*deltat)-1.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
-T2c=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2.0d0*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1-11*e*e)*sin(omega*tn*deltat)-1.0d0/2.0d0*e*sin(2*omega*tn*deltat)))
+T2=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2.0d0*(r(num_of_layers+1)+&
+r(num_of_layers))/2.0d0*omega*omega*e*(-sqrt(9*pi/5.0d0)*(cos(omega*tn*deltat)+3.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
+T2nc=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2.0d0*(r(num_of_layers+1)+&
+r(num_of_layers))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1+6*e*e)*cos(omega*tn*deltat)-1.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
+T2c=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2.0d0*(r(num_of_layers+1)+&
+r(num_of_layers))/2.0d0*omega*omega*(sqrt(3*pi/10.0d0)*((1-11*e*e)*sin(omega*tn*deltat)-1.0d0/2.0d0*e*sin(2*omega*tn*deltat)))
 
-call zadanislapovehopotencialu(pocetvrstev,l,b3,T2)
-call zadanislapovehopotencialu(pocetvrstev,l,b3nc,T2nc)
-call zadanislapovehopotencialu(pocetvrstev,l,b3c,T2c)
+call tidal_potential_initialization(num_of_layers,l,b3,T2)
+call tidal_potential_initialization(num_of_layers,l,b3nc,T2nc)
+call tidal_potential_initialization(num_of_layers,l,b3c,T2c)
 
-do i=1, pocetvrstev-1
+do i=1, num_of_layers-1
 b2(1+6*i)=-rho*r(i+1)*omega*omega*e*(-sqrt(18*pi)*(cos(omega*tn*deltat)+3.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
 b2nc(1+6*i)=-rho*r(i+1)*omega*omega*(sqrt(3*pi)*((1+6*e*e)*cos(omega*tn*deltat)-1.0d0/2.0d0*e*cos(2*omega*tn*deltat)))
 b2c(1+6*i)=-rho*r(i+1)*omega*omega*(sqrt(3*pi)*((1-11*e*e)*sin(omega*tn*deltat)-1.0d0/2.0d0*e*sin(2*omega*tn*deltat)))
@@ -706,18 +706,18 @@ end do
 
 else
 !tidal potential else
-T2=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2*omega*omega*e*(-sqrt(9*pi/5)*cos(omega*tn*deltat))
-T2nc=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2*omega*omega*e*(sqrt(27*pi/10)*cos(omega*tn*deltat))
-T2c=rhocore*(r(pocetvrstev+1)+r(pocetvrstev))/2*(r(pocetvrstev+1)+&
-r(pocetvrstev))/2*omega*omega*e*(-sqrt(24*pi/5)*sin(omega*tn*deltat))
+T2=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2*(r(num_of_layers+1)+&
+r(num_of_layers))/2*omega*omega*e*(-sqrt(9*pi/5)*cos(omega*tn*deltat))
+T2nc=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2*(r(num_of_layers+1)+&
+r(num_of_layers))/2*omega*omega*e*(sqrt(27*pi/10)*cos(omega*tn*deltat))
+T2c=rhocore*(r(num_of_layers+1)+r(num_of_layers))/2*(r(num_of_layers+1)+&
+r(num_of_layers))/2*omega*omega*e*(-sqrt(24*pi/5)*sin(omega*tn*deltat))
 
-call zadanislapovehopotencialu(pocetvrstev,l,b3,T2)
-call zadanislapovehopotencialu(pocetvrstev,l,b3nc,T2nc)
-call zadanislapovehopotencialu(pocetvrstev,l,b3c,T2c)
+call tidal_potential_initialization(num_of_layers,l,b3,T2)
+call tidal_potential_initialization(num_of_layers,l,b3nc,T2nc)
+call tidal_potential_initialization(num_of_layers,l,b3c,T2c)
 !adding tidal potential to equation of motion
-do i=1, pocetvrstev-1
+do i=1, num_of_layers-1
 b3(1+6*i)=-rho*r(i+1)*omega*omega*e*(-sqrt(18*pi)*cos(omega*tn*deltat))
 b3nc(1+6*i)=-rho*r(i+1)*omega*omega*e*(sqrt(27*pi)*cos(omega*tn*deltat))
 b3c(1+6*i)=-rho*r(i+1)*omega*omega*e*(-sqrt(48*pi)*sin(omega*tn*deltat))
@@ -725,7 +725,7 @@ end do
 endif
 
 !right hand side kelvin
-do i=0,pocetvrstev-1
+do i=0,num_of_layers-1
 b3(4+6*i)=-2*eta(i+1)/deltat*eps(3+6*i,tn)
 b3(5+6*i)=-2*eta(i+1)/deltat*eps(4+6*i,tn)
 b3(6+6*i)=-2*eta(i+1)/deltat*eps(6+6*i,tn)
@@ -736,11 +736,11 @@ b3nc(4+6*i)=-2*eta(i+1)/deltat*epsnc(3+6*i,tn)
 b3nc(5+6*i)=-2*eta(i+1)/deltat*epsnc(4+6*i,tn)
 b3nc(6+6*i)=-2*eta(i+1)/deltat*epsnc(6+6*i,tn)
 end do
-call banbksdp(a3,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,b3)
-call banbksdp(a3,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,b3nc)
-call banbksdp(a3,pocetvrstev*6+2,7,7,pocetvrstev*6+2,15,al,7,indx,b3c)
+call banbksdp(a3,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,b3)
+call banbksdp(a3,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,b3nc)
+call banbksdp(a3,num_of_layers*6+2,7,7,num_of_layers*6+2,15,al,7,indx,b3c)
 
-do i=0, pocetvrstev-1
+do i=0, num_of_layers-1
 eps(3+6*i,tn+1)=(eps(3+6*i,tn)*2*eta(i+1)/deltat+b3(3+6*i))/(2*(mu(i+1)+eta(i+1)/deltat))
 eps(4+6*i,tn+1)=(eps(4+6*i,tn)*2*eta(i+1)/deltat+b3(4+6*i))/(2*(mu(i+1)+eta(i+1)/deltat))
 eps(6+6*i,tn+1)=(eps(6+6*i,tn)*2*eta(i+1)/deltat+b3(6+6*i))/(2*(mu(i+1)+eta(i+1)/deltat))
@@ -752,7 +752,7 @@ epsc(6+6*i,tn+1)=(epsc(6+6*i,tn)*2*eta(i+1)/deltat+b3c(6+6*i))/(2*(mu(i+1)+eta(i
 epsnc(3+6*i,tn+1)=(epsnc(3+6*i,tn)*2*eta(i+1)/deltat+b3nc(3+6*i))/(2*(mu(i+1)+eta(i+1)/deltat))
 epsnc(4+6*i,tn+1)=(epsnc(4+6*i,tn)*2*eta(i+1)/deltat+b3nc(4+6*i))/(2*(mu(i+1)+eta(i+1)/deltat))
 epsnc(6+6*i,tn+1)=(epsnc(6+6*i,tn)*2*eta(i+1)/deltat+b3nc(6+6*i))/(2*(mu(i+1)+eta(i+1)/deltat))
-if ((tn>=2).and.(tn<pocetkroku)) then
+if ((tn>=2).and.(tn<num_of_steps)) then
 p(i+1,tn)=((eps(3+6*i,tn+1)-eps(3+6*i,tn-1))**2+(eps(4+6*i,tn+1)-eps(4+6*i,tn-1))**2+(eps(6+6*i,tn+1)-eps(6+6*i,tn-1))**2+&
 2*((epsnc(3+6*i,tn+1)-epsnc(3+6*i,tn-1))**2+(epsnc(4+6*i,tn+1)-epsnc(4+6*i,tn-1))**2+(epsnc(6+6*i,tn+1)-epsnc(6+6*i,tn-1))**2)+&
 2*((epsc(3+6*i,tn+1)-epsc(3+6*i,tn-1))**2+(epsc(4+6*i,tn+1)-epsc(4+6*i,tn-1))**2+(epsc(6+6*i,tn+1)-epsc(6+6*i,tn-1))**2))/&
@@ -760,21 +760,21 @@ deltat**2/4+&
 p(i+1,tn)
 endif
 enddo
-call vypocitejur(pocetvrstev,l,b3,ur)
-call vypocitejur(pocetvrstev,l,b3nc,ur22)
+call calculate_ur(num_of_layers,l,b3,ur)
+call calculate_ur(num_of_layers,l,b3nc,ur22)
 
 !radial displacement calculation
 theta = pi/2
 urmemory = (ur(1)+ur(2))/2*1/4*sqrt(5.0d0/pi)*(3*cos(theta)*cos(theta)-1)+&
 (ur22(1)+ur22(2))*1/4*sqrt(15.0d0/2/pi)*sin(theta)*sin(theta)
 
-if (tn>pocetkroku-krokuvperiode) then
+if (tn>num_of_steps-steps_in_period) then
 if (abs(urmemory) > urmaxmemory) then
 urmaxmemory = abs(urmemory)
 endif
 if ((ur(1)+ur(2))/2<urmax) then
     urmax=(ur(1)+ur(2))/2
-    tnmax=1.0d0*(tn-(pocetkroku-krokuvperiode))/krokuvperiode
+    tnmax=1.0d0*(tn-(num_of_steps-steps_in_period))/steps_in_period
 endif
 endif
 
@@ -788,16 +788,16 @@ write(5,*), eta(1), urmax
 write(12,*), eta(1), tnmax
 write(18,*), eta(1), urmaxmemory
 !reversed eta in comparison to maxwell - need to adjust it for procedure
-do i=1,pocetvrstev
+do i=1,num_of_layers
 eta(i)=1/eta(i)/4
 enddo
-call vypocitejpcelk(pcelk,pocetvrstev,pocetkroku,p,deltat,eta,r,krokuvperiode)
-do i=1,pocetvrstev
+call calculate_pcelk(pcelk,num_of_layers,num_of_steps,p,deltat,eta,r,steps_in_period)
+do i=1,num_of_layers
 eta(i)=1/eta(i)/4
 enddo
 print*, pcelk
 write(2,*),eta(1),pcelk
-!konec kelvin voigtova reologickeho modelu
+!end of kelvin voigt rheological model
 !----------------------------------------------------------------------------------------------------------
 enddo
 
@@ -844,7 +844,7 @@ deallocate (rtilde)
 deallocate (rhat)
 deallocate (r)
 
-end program naplnenimatice
+end program matrix_initialization
 
 !Numerical recipes subroutines
 SUBROUTINE banbks(a,n,m1,m2,np,mp,al,mpl,indx,b)
